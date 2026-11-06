@@ -7,11 +7,13 @@ Preflow-Push (`flow_algorithms/preflow_push.py`)
 
 ## Setup
 
+    Install Python3 and pip. 
+    Required libraries include networkx and pytest.
     pip install -r requirements.txt
-
+    
 ## Running tests
 
-    TODO
+    python -m pytest
 
 ## Running benchmarks
 
@@ -19,7 +21,9 @@ Preflow-Push (`flow_algorithms/preflow_push.py`)
 
 ## Implementation Notes
 
-### Preflow-Push - Algorithm Design Chapter 7.4: The Preflow-Push Maximum-Flow Algorithm. 357–367
+### Preflow-Push
+
+Reference: Algorithm Design Chapter 7.4: The Preflow-Push Maximum-Flow Algorithm. 357–367
 
 The Preflow-Push Algorithm will maintain a preflow and work on converting the preflow into a flow
 
@@ -34,7 +38,7 @@ Residual graph G_f of G:
     - For each edge e = (u, v) of G on which f(e) < c_e, there are c_e − f(e) “leftover” units of capacity on which we could
     try pushing flow forward.
     - For each edge e = (u, v) of G on which f(e) > 0, there are f(e) units of flow that we can “undo” if we want to, by
-    pushing flow backward. 
+    pushing flow backward.
 
 A labeling height and s-t preflow are "compatible" if
 (i) (Source and sink conditions) height(t) = 0 and height(s) = n,
@@ -42,13 +46,13 @@ A labeling height and s-t preflow are "compatible" if
 
 a) s-t preflow is "compatible" with a labeling h ==> there is no s-t path in the residual graph G_f (proof by contradiction with induction)
 b) no s-t path in the residual graph of a flow f  ==> flow of maximum value
-c) By definition a flow is a stricter preflow where all excess[u] = 0 (except s,t). 
+c) By definition a flow is a stricter preflow where all excess[u] = 0 (except s,t).
 
 Combine a, b, c:
 
 s-t flow is "compatible" with a labeling h ==> flow of maximum value.
 A preflow where all nodes other than s and t have zero excess is a flow, if compatibility is maintained(Invariant) ==> the value of the max flow is exactly excess(t) = −excess(s).
-Preflow-Push Algorithm will maintain a compatible preflow and labeling h , and it will work on modifying preflow and labeling h so as to transform preflow into a flow. 
+Preflow-Push Algorithm will maintain a compatible preflow and labeling h , and it will work on modifying preflow and labeling h so as to transform preflow into a flow.
 
 Convert preflow to flow: push flow through active nodes (excess[u] > 0), or relabel when push not possible for an active node.
 INVARIANT - compatibility
@@ -71,4 +75,3 @@ FIFO (uses queue to keep track of active nodes): O(n^3) and O(n+m) space. Initia
 Max Height (uses bucket array (list[list]) to keep track of active nodes): O(n^2 sqrt(m)) and O(n+m) space. Initialize O(n+m), Push/Relabel O(1), loop O(n^2 sqrt(m))
 
 Future Improvements: gap heuristic for height relabel, global relabeling heuristic, link/cut tree variant.
-

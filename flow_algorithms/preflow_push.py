@@ -1,7 +1,7 @@
 import networkx as nx
 from collections import deque
 
-def max_flow(G, s, t, variant = "max_height"):
+def max_flow(G:nx.DiGraph, s, t, variant = "max_height"):
 
     """
     Maximum flow from source s to sink t in a directed graph G using the Push-Relabel algorithm.
@@ -9,17 +9,20 @@ def max_flow(G, s, t, variant = "max_height"):
     Parameters
     ----------
     G : directed graph (networkx.DiGraph) where each edge has a finite 'capacity' attribute.
-    s : source node.
-    t : sink node.
-    variant: str, option for different variants of push-relabel, {'fifo','max_height'}
 
-            "fifo": Uses queue to keep track of active nodes (excess[u] > 0), alongside current-arc/discharge operation.
-            "max_height": Uses list of lists, indexed by node height in [0,2n-1], to keep track of active nodes (excess[u] > 0), alongside current-arc/discharge operation.
+    s : source node.
+
+    t : sink node.
+    
+    variant : str, option for different variants of push-relabel, {'fifo','max_height'}
+    
+    "fifo": Uses queue to keep track of active nodes (excess[u] > 0), alongside current-arc/discharge operation.
+    
+    "max_height": Uses list of lists, indexed by node height in [0,2n-1], to keep track of active nodes (excess[u] > 0), alongside current-arc/discharge operation.
 
     Returns
     -------
     flow_max: float, Maximum flow value from s to t, which is excess[t].
-    flow_dict: dict, Dictionary of resulting flow value per edge, which are derived from the residual values.
 
     Notes
     -----
@@ -40,11 +43,11 @@ def max_flow(G, s, t, variant = "max_height"):
 
     #If source and sink are the same, infinite flow possible
     if(s == t):
-        return float('inf'), {}
+        return KeyError("Source and sink are the same.")
 
     #Need valid sink/source nodes s/t in given graph G.
     if(s not in G.nodes() or t not in G.nodes()):
-        return KeyError(f"Either source or sink provided not in G.")
+        return KeyError("Either source or sink provided not in G.")
 
     if(variant not in ('fifo', 'max_height')):
         raise ValueError(f"Unexpected variant '{variant}' given.")
@@ -223,12 +226,13 @@ def max_flow(G, s, t, variant = "max_height"):
     # A preflow where all nodes other than s and t have zero excess is a flow, and the value of the max flow is exactly excess(t) = −excess(s).
 
     #Derive final flows on each edge for max flow. capacity - residual = net preflow, at end this should be a valid flow. 
-    for u,v in G.edges:
-        if(residual_G.has_edge(u,v)):
-            r = residual_G[u][v]['residual_capacity'] 
-        else: 
-            r = 0
 
-        preflows[(u,v)] = max(G[u][v]['capacity'] - r, 0)
+    # for u,v in G.edges:
+    #     if(residual_G.has_edge(u,v)):
+    #         r = residual_G[u][v]['residual_capacity'] 
+    #     else: 
+    #         r = 0
 
-    return excess[t], preflows
+    #     preflows[(u,v)] = max(G[u][v]['capacity'] - r, 0)
+
+    return excess[t]
