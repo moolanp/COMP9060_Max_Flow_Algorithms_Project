@@ -1,14 +1,14 @@
 import networkx as nx
 from collections import deque
 
-def max_flow(G:nx.DiGraph, s, t, variant = "max_height"):
+def max_flow(graph, s, t, variant = "max_height"):
 
     """
     Maximum flow from source s to sink t in a directed graph G using the Push-Relabel algorithm.
 
     Parameters
     ----------
-    G : directed graph (networkx.DiGraph) where each edge has a finite 'capacity' attribute.
+    graph : directed graph (adjacency list) where each edge has a finite 'capacity' attribute.
 
     s : source node.
 
@@ -39,15 +39,28 @@ def max_flow(G:nx.DiGraph, s, t, variant = "max_height"):
     Andrew V. Goldberg and Robert E. Tarjan. 1988. A new approach to the maximum-flow problem. J. ACM 35, 4 (October 1988), 921–940. https://doi.org/10.1145/48014.61051
     """
 
+    #Store info as nx.Digraph(), helper functions available.
+    G = nx.DiGraph()
+    for u, neighbors in graph.items():
+
+        G.add_node(u)
+
+        for v, cap in neighbors:
+
+            if(G.has_edge(u, v)):
+                G[u][v]['capacity'] += cap 
+            else:
+                G.add_edge(u, v, capacity = cap)
+
     ### Edge Cases ###
 
     #If source and sink are the same, infinite flow possible
     if(s == t):
-        return KeyError("Source and sink are the same.")
+        raise KeyError("Source and sink are the same.")
 
     #Need valid sink/source nodes s/t in given graph G.
     if(s not in G.nodes() or t not in G.nodes()):
-        return KeyError("Either source or sink provided not in G.")
+        raise KeyError("Either source or sink provided not in G.")
 
     if(variant not in ('fifo', 'max_height')):
         raise ValueError(f"Unexpected variant '{variant}' given.")
@@ -129,7 +142,10 @@ def max_flow(G:nx.DiGraph, s, t, variant = "max_height"):
                 
         else:
             active_node[v] = False
-        
+
+    # No longer need G, preflows after initialization.
+    del G, preflows
+    
     ### Define Push and Relabel ###
     
     def push(v,w):        
@@ -224,15 +240,4 @@ def max_flow(G:nx.DiGraph, s, t, variant = "max_height"):
     ### Return ###
     
     # A preflow where all nodes other than s and t have zero excess is a flow, and the value of the max flow is exactly excess(t) = −excess(s).
-
-    #Derive final flows on each edge for max flow. capacity - residual = net preflow, at end this should be a valid flow. 
-
-    # for u,v in G.edges:
-    #     if(residual_G.has_edge(u,v)):
-    #         r = residual_G[u][v]['residual_capacity'] 
-    #     else: 
-    #         r = 0
-
-    #     preflows[(u,v)] = max(G[u][v]['capacity'] - r, 0)
-
     return excess[t]

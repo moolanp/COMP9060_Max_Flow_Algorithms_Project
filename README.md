@@ -3,7 +3,11 @@ BCIT COMP 9060 Applied Algorithm Analysis Project
 
 ## Algorithms
 
-Preflow-Push (`flow_algorithms/preflow_push.py`)
+Ford Fulkerson
+Edmond Karp
+Dinic
+Preflow-Push
+Ahuja-Orlin
 
 ## Setup
 
@@ -11,13 +15,9 @@ Preflow-Push (`flow_algorithms/preflow_push.py`)
     Required libraries include networkx and pytest.
     pip install -r requirements.txt
     
-## Running tests
+## Running tests and benchmarks
 
     python -m pytest
-
-## Running benchmarks
-
-    TODO
 
 ## Implementation Notes
 
