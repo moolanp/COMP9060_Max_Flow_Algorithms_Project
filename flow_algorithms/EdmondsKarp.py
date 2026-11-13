@@ -1,13 +1,15 @@
 from collections import deque
 import time
 
+from django.db.migrations import graph
+
 def edmonds_karp(graph, source, sink):
 
     """
     Implementation of the Edmonds-Karp algorithm to find the maximum flow in a flow network.
 
     Input variables:
-        - graph: A 2D list (adjacency matrix) representing the directed graph, where graph[u][v] is the capacity of the edge from vertex u to vertex v. If there is no edge, the capacity is 0.
+        - graph: A dictionary representing an adjacency list. Each vertex maps to a list of (neighbour, capacity) tuples.
         - source: The index of the source vertex in the graph (The starting vertex from which the flow originates).
         - sink: The index of the sink vertex in the graph (The destination vertex where the flow terminates).
     
@@ -32,11 +34,26 @@ def edmonds_karp(graph, source, sink):
 
     n = len(graph)
 
-    # Create residual graph
-    residual = [row[:] for row in graph]
+    # Create adjacency list and residual graph
+    adj = {u: [] for u in graph}
+    residual = {u: {} for u in graph}
+
+    for u in graph:
+        for v, capacity in graph[u]:
+
+            # Add forward and reverse neighbours
+            if v not in adj[u]:
+                adj[u].append(v)
+
+            if u not in adj[v]:
+                adj[v].append(u)
+
+            # Initialize residual capacities
+            residual[u][v] = capacity
+            residual[v].setdefault(u, 0)
 
     def bfs(source, sink, parent):
-        visited = [False] * n
+        visited = {u: False for u in graph}
         queue = deque([source])
 
         visited[source] = True
@@ -44,20 +61,20 @@ def edmonds_karp(graph, source, sink):
         while queue:
             u = queue.popleft()
 
-            for v in range(n):
+            for v in adj[u]:
                 if not visited[v] and residual[u][v] > 0:
-                    parent[v] = u
-                    visited[v] = True
+                        parent[v] = u
+                        visited[v] = True
 
-                    if v == sink:
-                        return True
+                        if v == sink:
+                            return True
 
-                    queue.append(v)
+                        queue.append(v)
 
         return False
 
     max_flow = 0
-    parent = [-1] * n
+    parent = {u: -1 for u in graph}
 
     # Find augmenting paths using BFS
     while bfs(source, sink, parent):
@@ -92,69 +109,98 @@ Test cases for the Edmonds-Karp algorithm implementation.
 This function runs a series of predefined test cases to validate the correctness of the edmonds_karp function.
 """
 def test_cases_edmonds_karp():
-    # Simple graph
-    graph1 = [
-        [0, 3, 2, 0],
-        [0, 0, 0, 3],
-        [0, 0, 0, 2],
-        [0, 0, 0, 0]
-    ]
+    # Test 1: Simple graph
+    graph1 = {
+        0: [(1, 3), (2, 2)],
+        1: [(3, 3)],
+        2: [(3, 2)],
+        3: []
+    }
 
+    # Test 2: Graph with multiple paths
+    graph2 = {
+        0: [(1, 10), (2, 5)],
+        1: [(3, 10)],
+        2: [(3, 5)],
+        3: [(4, 10)],
+        4: []
+    }
 
-    # Graph with multiple paths
-    graph2 = [
-        [0, 10, 5, 0, 0],
-        [0, 0, 0, 10, 0],
-        [0, 0, 0, 5, 0],
-        [0, 0, 0, 0, 10],
-        [0, 0, 0, 0, 0]
-    ]
+    # Test 3: Graph with bottleneck
+    graph3 = {
+        0: [(1, 10)],
+        1: [(2, 4)],
+        2: [(3, 10)],
+        3: []
+    }
 
-    # Graph with bottleneck
-    graph3 = [
-        [0, 10, 0, 0],
-        [0, 0, 4, 0],
-        [0, 0, 0, 10],
-        [0, 0, 0, 0]
-    ]
+    # Test 4: Graph requiring backward edges
+    graph4 = {
+        0: [(1, 1), (2, 1)],
+        1: [(2, 1), (3, 1)],
+        2: [(3, 1)],
+        3: []
+    }
 
+    # Test 5: Disconnected sink
+    graph5 = {
+        0: [(1, 5)],
+        1: [(2, 3)],
+        2: [],
+        3: []
+    }
 
-    # Graph requiring backward edges
-    graph4 = [
-        [0, 1, 1, 0],
-        [0, 0, 1, 1],
-        [0, 0, 0, 1],
-        [0, 0, 0, 0]
-    ]
+    # Test 6: Classic maximum flow example
+    graph6 = {
+        0: [(1, 16), (2, 13)],
+        1: [(2, 10), (3, 12)],
+        2: [(1, 4), (4, 14)],
+        3: [(2, 9), (5, 20)],
+        4: [(3, 7), (5, 4)],
+        5: []
+    }
 
+    # Test 7: Original edges in both directions
+    graph7 = {
+        0: [(1, 10)],
+        1: [(0, 5), (2, 7)],
+        2: []
+    }
 
-    # Disconnected sink 
-    graph5 = [
-        [0, 5, 0, 0],
-        [0, 0, 3, 0],
-        [0, 0, 0, 0],
-        [0, 0, 0, 0]
-    ]
+    # Test 8: Large graph with multiple paths, cycles,
+    # bottlenecks, and original reverse edges
+    graph8 = {
+        0: [(1, 20), (2, 15), (3, 10)],
 
-    graph6 = [
-        [0, 16, 13, 0, 0, 0],
-        [0, 0, 10, 12, 0, 0],
-        [0, 4, 0, 0, 14, 0],
-        [0, 0, 9, 0, 0, 20],
-        [0, 0, 0, 7, 0, 4],
-        [0, 0, 0, 0, 0, 0]
-    ]
+        1: [(0, 5), (4, 12), (5, 10)],
+        2: [(1, 8), (5, 10), (6, 12)],
+        3: [(2, 5), (6, 10), (7, 8)],
+        4: [(1, 4), (8, 10), (9, 8)],
+        5: [(4, 6), (8, 10), (9, 12), (6, 5)],
+        6: [(5, 3), (9, 10), (10, 12)],
+        7: [(6, 4), (10, 10)],
+        8: [(11, 12), (12, 8)],
+        9: [(8, 5), (11, 10), (12, 10)],
+        10: [(9, 6), (12, 12)],
+        11: [(13, 15)],
+        12: [(11, 5), (13, 15)],
+        13: [(12, 4), (14, 25)],
+        14: []
+    }
 
-
+    # source, sink, expected max flow
     test_cases = [
         (graph1, 0, 3, 5),
         (graph2, 0, 4, 10),
         (graph3, 0, 3, 4),
         (graph4, 0, 3, 2),
         (graph5, 0, 3, 0),
-        (graph6, 0, 5, 23)
+        (graph6, 0, 5, 23),
+        (graph7, 0, 2, 7),
+        (graph8, 0, 14, 25)
     ]
 
+    print("Edmonds-Karp test cases: \n")
     for i, (graph, source, sink, expected) in enumerate(test_cases, 1):
         result = edmonds_karp(graph, source, sink)
 
@@ -166,25 +212,24 @@ def test_cases_edmonds_karp():
         )
 
 
-
 # Example graph
-graph = [
-    [0, 16, 13, 0, 0, 0],
-    [0, 0, 10, 12, 0, 0],
-    [0, 4, 0, 0, 14, 0],
-    [0, 0, 9, 0, 0, 20],
-    [0, 0, 0, 7, 0, 4],
-    [0, 0, 0, 0, 0, 0]
-]
+graph_input = {
+    0: [(1, 16), (2, 13)],
+    1: [(2, 10), (3, 12)],
+    2: [(1, 4), (4, 14)],
+    3: [(2, 9), (5, 20)],
+    4: [(3, 7), (5, 4)],
+    5: []
+}
 
 source = 0
 sink = 5
 
 start_time = time.perf_counter()
-results = edmonds_karp(graph, source, sink)
+max_flow = edmonds_karp(graph_input, source, sink)
 end_time = time.perf_counter()
 execution_time = end_time - start_time
 
-print("Maximum Flow:", results)
+print("Maximum Flow:", max_flow)
 print("Execution Time:", execution_time, "seconds")
 test_cases_edmonds_karp()
