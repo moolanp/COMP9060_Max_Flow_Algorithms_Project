@@ -29,6 +29,7 @@ def max_flow(graph, s, t, variant = "max_height"):
     The algorithm keeps track of a residual graph, vertex excess, and vertex height.
     Keeps track of active nodes(excess[node]>0) using a queue('fifo') or a list of lists('max_height'). Avoids duplicate active nodes with boolean dict.
     Uses current-arc structure and discharge operation.
+    Implements global relabeling heuristic.
 
     References
     -----
@@ -37,7 +38,25 @@ def max_flow(graph, s, t, variant = "max_height"):
     Éva Tardos and John Kleinberg. Algorithm Design Chapter 7.4: The Preflow-Push Maximum-Flow Algorithm. In Algorithm Design (1st ed.). Addison-Wesley ,Pearson Education, Inc., 357–367.
     
     Andrew V. Goldberg and Robert E. Tarjan. 1988. A new approach to the maximum-flow problem. J. ACM 35, 4 (October 1988), 921–940. https://doi.org/10.1145/48014.61051
+
+    Boris V. Cherkassky and Andrew V. Goldberg. 1995. On implementing push-relabel method for the maximum flow problem. In Integer Programming and Combinatorial Optimization, Egon Balas and Jens Clausen (eds.). Springer Berlin Heidelberg, Berlin, Heidelberg, 157–171. https://doi.org/10.1007/3-540-59408-6_49
+
     """
+
+    ### Edge Cases ###
+
+    #If source and sink are the same, infinite flow possible
+    if(s == t):
+        raise KeyError("Source and sink are the same.")
+
+    #Need valid sink/source nodes s/t in given graph G.
+    if(s not in graph.keys() or t not in graph.keys()):
+        raise KeyError("Either source or sink provided not in G.")
+
+    if(variant not in ('fifo', 'max_height')):
+        raise ValueError(f"Unexpected variant '{variant}' given.")
+    
+    ### Initialization ###
 
     #Store info as nx.Digraph(), helper functions available.
     G = nx.DiGraph()
@@ -52,40 +71,32 @@ def max_flow(graph, s, t, variant = "max_height"):
             else:
                 G.add_edge(u, v, capacity = cap)
 
-    ### Edge Cases ###
-
-    #If source and sink are the same, infinite flow possible
-    if(s == t):
-        raise KeyError("Source and sink are the same.")
-
-    #Need valid sink/source nodes s/t in given graph G.
-    if(s not in G.nodes() or t not in G.nodes()):
-        raise KeyError("Either source or sink provided not in G.")
-
-    if(variant not in ('fifo', 'max_height')):
-        raise ValueError(f"Unexpected variant '{variant}' given.")
-    
-    ### Initialization ###
+    num_nodes = G.number_of_nodes()
 
     #Storage for node selection during main loop. 
     #Boolean dict keeps track if a node is present in either node_queue or nodes_at_height, avoids duplicate active nodes.
-    active_node = {v: False for v in G.nodes}
-    
+    active_node = {}
+
     if(variant=='fifo'):
         node_queue = deque()
     elif(variant=='max_height'):
-        nodes_at_height = [[] for i in range(2*G.number_of_nodes())]
+        nodes_at_height = [[] for i in range(2*num_nodes)] #2n is the upper bound on possible height.
         top = 0 
         
     #Current-Arc Storage, used within discharge(v) function for efficient indexing of admissable edges.
-    #neighbours in both directions since residual graph can include backward edges to push on.
-    neighbors = {v: list(set(G.successors(v)) | set(G.predecessors(v))) for v in G.nodes}
-    current = {v: 0 for v in G.nodes}   # current-arc index - essentially a pointer
+    neighbors = {} # neighbours in both directions since residual graph can include backward edges to push on.
+    current = {}   # current-arc index - essentially a dict of pointers
 
     preflows = {}
     residual_G = nx.DiGraph()
     excess = {}
     height = {}
+
+    # Large improvement using global relabeling heuristic. 
+    # Periodically (after n relabels) performs a BFS from t backwards through the residual graph to update height[v], where height[t] = 0
+    # Nodes that cannot reach t are raised to at least height n, saving multiple steps/loops of incrementing height.
+    # Global relabeling preserves the labeling invariant requirement. Initialize at 0.
+    relabels_performed = 0
 
     for u,v in G.edges:
         #Initialize preflows and residual graph.
@@ -117,14 +128,24 @@ def max_flow(graph, s, t, variant = "max_height"):
                 residual_G.add_edge(v, u, residual_capacity = preflows[(u,v)] )
 
     for v in G.nodes:
-        #Initialize excess, height, and active node storage.        
+
+        successors = list(G.successors(v))
+        predecessors = list(G.predecessors(v))
+
+        #Initialize excess, height, neighbours, current, and active node storage.  
+    
+        #neighbours in both directions since residual graph can include backward edges to push on.
+        neighbors[v] = list(set(successors) | set(predecessors))
+
+        #Each current starts at 0, corresponding to a pointer to the first neighbour/edge in neighbours[v]
+        current[v] = 0     
         
         #Excess defined as sum of preflows into node - sum of preflows out of a node.
-        excess[v] = sum(preflows[(u,v)] for u in G.predecessors(v)) - sum(preflows[(v,w)] for w in G.successors(v))
+        excess[v] = sum(preflows[(u,v)] for u in predecessors) - sum(preflows[(v,w)] for w in successors)
         
         #Height initialized at 0, except for source node which starts at n. 
         if(v == s):
-            height[v] = G.number_of_nodes()
+            height[v] = num_nodes
         else:
             height[v] = 0
 
@@ -143,8 +164,8 @@ def max_flow(graph, s, t, variant = "max_height"):
         else:
             active_node[v] = False
 
-    # No longer need G, preflows after initialization.
-    del G, preflows
+    # No longer need G, preflows, successors and predecessors after initialization.
+    del G, preflows, successors, predecessors
     
     ### Define Push and Relabel ###
     
@@ -173,11 +194,71 @@ def max_flow(graph, s, t, variant = "max_height"):
         return
 
     def relabel(v):
-        #Applicable if excess(v) > 0, and for all edges (v, w) in residual graph: h(w) ≥ h(v)        
+        #Increments relabels_performed for global relabeling heuristic
+        nonlocal relabels_performed
+        relabels_performed += 1
 
+        #Applicable if excess(v) > 0, and for all edges (v, w) in residual graph: h(w) ≥ h(v)        
         height[v] = 1 + min(height[w] for w in residual_G.successors(v))
 
         return
+    
+    # Note AI (Claude 5.5) was used to help review the code when implementing the global relabel heuristic. 
+    def global_relabel():
+        #Backwards BFS from the sink, on the residual graph, to update node heights.
+        dist = {t: 0}
+        q = deque([t])
+        
+        while q:
+            w = q.popleft()
+
+            #If node not in residual graph, can skip the rest of the loop, go to next node.     
+            if(w not in residual_G):
+                continue
+            
+            for v in residual_G.predecessors(w):
+                
+                if(v not in dist and v != s):
+                    dist[v] = dist[w] + 1
+                    q.append(v)
+
+        #Nodes that can reach t get assigned their new height, all others are raised to num_nodes (unless they have a higher height already)
+        for u in height:
+            
+            if(u == s):
+                continue
+            if(u in dist):
+                height[u] = dist[u]
+            else:
+                height[u] = max(height[u], num_nodes)
+
+        #Since heights are changed, need to re-initialize active node storage per node selection rule.
+        #And re-initialize active_node (boolean dict that keeps track of nodes that are in active node storage)
+        #Also since heights are changed, we need to re-initialize current-arc index (dict of pointers used with current-arc structure).
+        if(variant == "fifo"):
+            node_queue.clear()
+        elif(variant == "max_height"):
+            nonlocal top
+            for row in nodes_at_height:
+                row.clear()
+            top = 0
+
+        for u in height:
+            current[u] = 0
+            active_node[u] = False
+            
+            if(u != s and u != t and excess[u] > 0):
+                active_node[u] = True
+                
+                if(variant == "fifo"):
+                    node_queue.append(u)
+                elif(variant == "max_height"):
+                    nodes_at_height[height[u]].append(u)
+                    top = max(top, height[u])
+
+        #Reset count of relabels_performed.
+        nonlocal relabels_performed
+        relabels_performed = 0
    
     def discharge(v):
         #Current-arc/discharge operation to avoid looping over neighbours of v. Ie avoid repeated work in main loop
@@ -214,6 +295,9 @@ def max_flow(graph, s, t, variant = "max_height"):
     
     ### Main Loop ###
 
+    #Perform a global relabel to initialize node heights, saving multiple steps/loops of incrementing height.
+    global_relabel()
+
     if(variant=="fifo"):
         
         #While there is a vertex v with excess[v] > 0.
@@ -223,6 +307,10 @@ def max_flow(graph, s, t, variant = "max_height"):
             active_node[v] = False
             
             discharge(v) # Fully exhausts excess[v] until <= 0
+
+            #Perform global relabel heuristic after n relabels
+            if(relabels_performed >= num_nodes):
+                global_relabel()
     
     elif(variant=="max_height"):
         
@@ -236,6 +324,10 @@ def max_flow(graph, s, t, variant = "max_height"):
             active_node[v] = False
             
             discharge(v)
+
+            #Perform global relabel heuristic after n relabels
+            if(relabels_performed >= num_nodes):
+                global_relabel()
     
     ### Return ###
     
