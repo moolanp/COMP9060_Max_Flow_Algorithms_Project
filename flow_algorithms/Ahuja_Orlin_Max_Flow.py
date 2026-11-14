@@ -8,6 +8,7 @@ def max_flow(graph, s, t):
 
     Reference: Ahuja and Orlin (1989), A Fast and Simple Algorithm for
     the Maximum Flow Problem.
+    The latest Orlin's (2013) solution is mentioned in the paper. 
 
     """
     n = len(graph)
