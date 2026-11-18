@@ -1,6 +1,6 @@
 import time
 
-def ford_fulkerson(graph, source, sink):
+def ford_fulkerson_max_flow(graph, source, sink):
 
     """
     Implementation of the Ford Fulkerson algorithm to calculate the maximum possible flow through a directed network from a designated source vertex to a destination vertex (sink).
@@ -48,7 +48,8 @@ def ford_fulkerson(graph, source, sink):
                 adj[v].append(u)
 
             # Initialize residual capacities
-            residual[u][v] = capacity
+            # Accumulate capacities for parallel edges
+            residual[u][v] = residual[u].get(v, 0) + capacity
             residual[v].setdefault(u, 0)
 
 
@@ -203,7 +204,7 @@ def test_cases_ford_fulkerson():
     print("Ford Fulkerson test cases: \n")
 
     for i, (graph, source, sink, expected) in enumerate(test_cases, 1):
-        result = ford_fulkerson(graph, source, sink)
+        result = ford_fulkerson_max_flow(graph, source, sink)
 
         status = "PASS" if result == expected else "FAIL"
 
@@ -229,7 +230,7 @@ source = 0
 sink = 5
 
 start_time = time.perf_counter()
-max_flow = ford_fulkerson(graph_input, source, sink)
+max_flow = ford_fulkerson_max_flow(graph_input, source, sink)
 end_time = time.perf_counter()
 execution_time = end_time - start_time
 

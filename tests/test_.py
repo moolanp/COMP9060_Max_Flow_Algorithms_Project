@@ -7,6 +7,8 @@ Run from the repository root: python -m pytest tests/test_.py -v
 import pytest
 from flow_algorithms.dinic import max_flow
 from flow_algorithms import preflow_push
+from flow_algorithms.EdmondsKarp import edmonds_karp_max_flow
+from flow_algorithms.FordFulkerson import ford_fulkerson_max_flow
 
 
 # Verify all seven shared adjacency-list scenarios.
@@ -55,6 +57,67 @@ from flow_algorithms import preflow_push
             0, 3, 2,
             id="zero_capacity",
         ),
+        pytest.param(
+            {
+                0: [(1, 3), (2, 2)],
+                1: [(3, 3)],
+                2: [(3, 2)],
+                3: [],
+            },
+            0, 3, 5,
+            id="different_path_capacities",
+        ),
+        pytest.param(
+            {
+                0: [(1, 10), (2, 5)],
+                1: [(3, 10)],
+                2: [(3, 5)],
+                3: [(4, 10)],
+                4: [],
+            },
+            0, 4, 10,
+            id="multiple_paths_longer_network",
+        ),
+        pytest.param(
+            {
+                0: [(1, 10)],
+                1: [(2, 4)],
+                2: [(3, 10)],
+                3: [],
+            },
+            0, 3, 4,
+            id="bottleneck",
+        ),
+        pytest.param(
+            {
+                0: [(1, 10)],
+                1: [(0, 5), (2, 7)],
+                2: [],
+            },
+            0, 2, 7,
+            id="original_reverse_edges",
+        ),
+        pytest.param(
+            {
+                0: [(1, 20), (2, 15), (3, 10)],
+                1: [(0, 5), (4, 12), (5, 10)],
+                2: [(1, 8), (5, 10), (6, 12)],
+                3: [(2, 5), (6, 10), (7, 8)],
+                4: [(1, 4), (8, 10), (9, 8)],
+                5: [(4, 6), (8, 10), (9, 12), (6, 5)],
+                6: [(5, 3), (9, 10), (10, 12)],
+                7: [(6, 4), (10, 10)],
+                8: [(11, 12), (12, 8)],
+                9: [(8, 5), (11, 10), (12, 10)],
+                10: [(9, 6), (12, 12)],
+                11: [(13, 15)],
+                12: [(11, 5), (13, 15)],
+                13: [(12, 4), (14, 25)],
+                14: [],
+            },
+            0, 14, 25,
+            id="large_network_cycles_reverse_edges",
+        ),
     ],
 )
 # Call the public function used by other team algorithms.
@@ -63,3 +126,6 @@ def test_max_flow(graph, source, sink, expected):
     assert max_flow(graph, source, sink) == expected
     
     assert preflow_push.max_flow(graph, source, sink) == expected
+
+    assert edmonds_karp_max_flow(graph, source, sink) == expected
+    assert ford_fulkerson_max_flow(graph, source, sink) == expected

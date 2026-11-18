@@ -3,7 +3,7 @@ import time
 
 from django.db.migrations import graph
 
-def edmonds_karp(graph, source, sink):
+def edmonds_karp_max_flow(graph, source, sink):
 
     """
     Implementation of the Edmonds-Karp algorithm to find the maximum flow in a flow network.
@@ -49,7 +49,7 @@ def edmonds_karp(graph, source, sink):
                 adj[v].append(u)
 
             # Initialize residual capacities
-            residual[u][v] = capacity
+            residual[u][v] = residual[u].get(v, 0) + capacity
             residual[v].setdefault(u, 0)
 
     def bfs(source, sink, parent):
@@ -202,7 +202,7 @@ def test_cases_edmonds_karp():
 
     print("Edmonds-Karp test cases: \n")
     for i, (graph, source, sink, expected) in enumerate(test_cases, 1):
-        result = edmonds_karp(graph, source, sink)
+        result = edmonds_karp_max_flow(graph, source, sink)
 
         status = "PASS" if result == expected else "FAIL"
 
@@ -226,7 +226,7 @@ source = 0
 sink = 5
 
 start_time = time.perf_counter()
-max_flow = edmonds_karp(graph_input, source, sink)
+max_flow = edmonds_karp_max_flow(graph_input, source, sink)
 end_time = time.perf_counter()
 execution_time = end_time - start_time
 
