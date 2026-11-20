@@ -1,5 +1,4 @@
-import networkx as nx
-from collections import deque
+from collections import deque, defaultdict
 
 def max_flow(graph, s, t, variant = "max_height"):
 
@@ -8,7 +7,7 @@ def max_flow(graph, s, t, variant = "max_height"):
 
     Parameters
     ----------
-    graph : directed graph (adjacency list) where each edge has a finite 'capacity' attribute.
+    graph : directed graph (adjacency list) where each edge has a finite positive 'capacity' attribute.
 
     s : source node.
 
@@ -41,16 +40,18 @@ def max_flow(graph, s, t, variant = "max_height"):
 
     Boris V. Cherkassky and Andrew V. Goldberg. 1995. On implementing push-relabel method for the maximum flow problem. In Integer Programming and Combinatorial Optimization, Egon Balas and Jens Clausen (eds.). Springer Berlin Heidelberg, Berlin, Heidelberg, 157–171. https://doi.org/10.1007/3-540-59408-6_49
 
+    AI: Used for documentation and code checks. See the team's README AI Use section for disclosure.
+
     """
 
     ### Edge Cases ###
 
     #If source and sink are the same, infinite flow possible
     if(s == t):
-        raise KeyError("Source and sink are the same.")
+        raise ValueError("Source and sink are the same.")
 
     #Need valid sink/source nodes s/t in given graph G.
-    if(s not in graph.keys() or t not in graph.keys()):
+    if(s not in graph or t not in graph):
         raise KeyError("Either source or sink provided not in G.")
 
     if(variant not in ('fifo', 'max_height')):
@@ -58,138 +59,63 @@ def max_flow(graph, s, t, variant = "max_height"):
     
     ### Initialization ###
 
-    #Store info as nx.Digraph(), helper functions available.
-    G = nx.DiGraph()
-    for u, neighbors in graph.items():
-
-        G.add_node(u)
-
-        for v, cap in neighbors:
-
-            if(G.has_edge(u, v)):
-                G[u][v]['capacity'] += cap 
-            else:
-                G.add_edge(u, v, capacity = cap)
-
-    num_nodes = G.number_of_nodes()
-
-    #Storage for node selection during main loop. 
-    #Boolean dict keeps track if a node is present in either node_queue or nodes_at_height, avoids duplicate active nodes.
-    active_node = {}
-
-    if(variant=='fifo'):
-        node_queue = deque()
-    elif(variant=='max_height'):
-        nodes_at_height = [[] for i in range(2*num_nodes)] #2n is the upper bound on possible height.
-        top = 0 
-        
-    #Current-Arc Storage, used within discharge(v) function for efficient indexing of admissable edges.
-    neighbors = {} # neighbours in both directions since residual graph can include backward edges to push on.
-    current = {}   # current-arc index - essentially a dict of pointers
-
-    preflows = {}
-    residual_G = nx.DiGraph()
-    excess = {}
-    height = {}
+    residual = defaultdict(lambda: defaultdict(int))
+    excess = defaultdict(int)
 
     # Large improvement using global relabeling heuristic. 
     # Periodically (after n relabels) performs a BFS from t backwards through the residual graph to update height[v], where height[t] = 0
     # Nodes that cannot reach t are raised to at least height n, saving multiple steps/loops of incrementing height.
-    # Global relabeling preserves the labeling invariant requirement. Initialize at 0.
     relabels_performed = 0
 
-    for u,v in G.edges:
-        #Initialize preflows and residual graph.
-        
-        #For edges leaving s, preflow is equal to capacity (to avoid inclusion in residual graph as forward edge). 0 otherwise.
-        if(u == s):
-            preflows[(u,v)] = G[u][v]['capacity']
-        else:
-            preflows[(u,v)] = 0
+    #Initialize excess and the residual graph.
+    for u, neighbors in graph.items():
+        residual[u] # init defaultdict
+        excess[u] # init defaultdict
 
-        #Add necessary forward and backward edges into residual graph using the previously initialized preflow values.
-        
-        #Forward Edge into residual graph, with residual_capacity += capacity((u,v)) - preflow((u,v))
-        if(G[u][v]['capacity'] > preflows[(u,v)]):
+        for v, cap in neighbors:
+            residual[u][v] += cap
+            residual[v][u] += 0 
 
-            #Check for (u,v) already in residual graph due to anti-parallel edges in G. ie (u,v) and (v,u) both in G.
-            if(residual_G.has_edge(u, v)):
-                residual_G[u][v]['residual_capacity'] += G[u][v]['capacity'] - preflows[(u,v)] 
-            else:
-                residual_G.add_edge(u, v, residual_capacity = G[u][v]['capacity'] - preflows[(u,v)])
-        
-        #Backward Edge into residual graph, with residual_capacity += preflow((u,v))
-        if(preflows[(u,v)] > 0):
-            
-            #Check for (v,u) already in residual graph due to anti-parallel edges in G. ie (u,v) and (v,u) both in G.
-            if(residual_G.has_edge(v, u)):
-                residual_G[v][u]['residual_capacity'] += preflows[(u,v)] 
-            else:
-                residual_G.add_edge(v, u, residual_capacity = preflows[(u,v)] )
+    #Current-Arc Storage, used within discharge(v) function for efficient indexing of admissable edges.
+    neighbors = {v: list(residual[v]) for v in residual} #neighbors in both directions since residual graph can include backward edges to push on.
+    current = {v: 0 for v in residual} #current-arc index: dict of pointers, starts at 0, pointing to the first edge in neighbors[v]
 
-    for v in G.nodes:
-
-        successors = list(G.successors(v))
-        predecessors = list(G.predecessors(v))
-
-        #Initialize excess, height, neighbours, current, and active node storage.  
+    # All nodes start at height 0 , except for s at height n.
+    n = len(residual)
+    height = {v: 0 for v in residual}
+    height[s] = n
     
-        #neighbours in both directions since residual graph can include backward edges to push on.
-        neighbors[v] = list(set(successors) | set(predecessors))
+    #Initialize active node storage. During initialization, only successors of s can become active.
+    #Stores nodes in queue or height-indexed list[list], to keep track of active nodes for main loop. 
+    #Use boolean dict to avoid duplicate nodes added to node storage.
+    active_node = {v: False for v in residual}
+    if(variant=='fifo'):
+        node_queue = deque()
+    elif(variant=='max_height'):
+        nodes_at_height = [[] for i in range(2*n)] #2n is the upper bound on possible height.
+        top = 0 
 
-        #Each current starts at 0, corresponding to a pointer to the first neighbour/edge in neighbours[v]
-        current[v] = 0     
-        
-        #Excess defined as sum of preflows into node - sum of preflows out of a node.
-        excess[v] = sum(preflows[(u,v)] for u in predecessors) - sum(preflows[(v,w)] for w in successors)
-        
-        #Height initialized at 0, except for source node which starts at n. 
-        if(v == s):
-            height[v] = num_nodes
-        else:
-            height[v] = 0
+    # Only successors of s can receive excess/saturate (ie become active) during initialization. 
+    for v, cap in graph[s]:    
+        residual[s][v] -= cap
+        residual[v][s] += cap
+        excess[v] += cap
+        excess[s] -= cap
 
-        #Adds nodes to queue or height-indexed list[list], to keep track of active nodes for main loop. 
-        #Use boolean dict to avoid duplicate nodes added to node storage.
-        if(excess[v] > 0 and v!=t):    
-            active_node[v] = True
-            
-            if(variant=='fifo'):
-                node_queue.append(v)
-            
-            elif(variant=='max_height'):
-                nodes_at_height[height[v]].append(v)
-                top = max(top, height[v])
-                
-        else:
-            active_node[v] = False
+    #Nodes with excess(active) will join the active node storage during the first global relabeling in the main loop.
 
-    # No longer need G, preflows, successors and predecessors after initialization.
-    del G, preflows, successors, predecessors
-    
     ### Define Push and Relabel ###
     
     def push(v,w):        
-        #Applicable if excess(v) > 0, height(w) < height(v) and (v, w) in residual graph.
+        #Applicable if excess(v) > 0, height(w)+1 = height(v) and (v, w) in residual graph.
         #Works on both forward and backward edges. Updates residual graph and excess.
-        #Note that preflow is updated at the end of the algorithm, using the final residual graph.
-        
-        d = min(excess[v], residual_G[v][w]['residual_capacity'])
-        residual_G[v][w]['residual_capacity'] -= d
-
         #Adjust excess of v and w, due to pushing d from v to w.
+        
+        d = min(excess[v], residual[v][w])
+        residual[v][w] -= d
+        residual[w][v] += d
         excess[v] -= d
         excess[w] += d
-        
-        #Remove forward/backward edge if no residual capacity leftover.
-        if(residual_G[v][w]['residual_capacity'] == 0):
-            residual_G.remove_edge(v, w)
-
-        #Add backward/forward edge if necessary or update
-        if(not residual_G.has_edge(w, v)):
-            residual_G.add_edge(w, v, residual_capacity = d)
-        else:
-            residual_G[w][v]['residual_capacity'] += d
         
         return
 
@@ -199,7 +125,7 @@ def max_flow(graph, s, t, variant = "max_height"):
         relabels_performed += 1
 
         #Applicable if excess(v) > 0, and for all edges (v, w) in residual graph: h(w) ≥ h(v)        
-        height[v] = 1 + min(height[w] for w in residual_G.successors(v))
+        height[v] = 1 + min(height[w] for w in neighbors[v] if residual[v][w] > 0)
 
         return
     
@@ -212,17 +138,13 @@ def max_flow(graph, s, t, variant = "max_height"):
         while q:
             w = q.popleft()
 
-            #If node not in residual graph, can skip the rest of the loop, go to next node.     
-            if(w not in residual_G):
-                continue
-            
-            for v in residual_G.predecessors(w):
+            for v in neighbors[w]:
                 
-                if(v not in dist and v != s):
+                if(v not in dist and v != s and residual[v][w] > 0):
                     dist[v] = dist[w] + 1
                     q.append(v)
 
-        #Nodes that can reach t get assigned their new height, all others are raised to num_nodes (unless they have a higher height already)
+        #Nodes that can reach t get assigned their new height, all others are raised to n (unless they have a higher height already)
         for u in height:
             
             if(u == s):
@@ -230,7 +152,7 @@ def max_flow(graph, s, t, variant = "max_height"):
             if(u in dist):
                 height[u] = dist[u]
             else:
-                height[u] = max(height[u], num_nodes)
+                height[u] = max(height[u], n)
 
         #Since heights are changed, need to re-initialize active node storage per node selection rule.
         #And re-initialize active_node (boolean dict that keeps track of nodes that are in active node storage)
@@ -261,12 +183,12 @@ def max_flow(graph, s, t, variant = "max_height"):
         relabels_performed = 0
    
     def discharge(v):
-        #Current-arc/discharge operation to avoid looping over neighbours of v. Ie avoid repeated work in main loop
+        #Current-arc/discharge operation to avoid looping over neighbors of v. Ie avoid repeated work in main loop
         
         #Push until v has no excess
         while(excess[v] > 0):
 
-            #Relabel and rewind the pointer to start of v's neighbours whenever the current-arc list is exhausted.
+            #Relabel and rewind the pointer to start of v's neighbors whenever the current-arc list is exhausted.
             if(current[v] == len(neighbors[v])):
                 relabel(v)
                 current[v] = 0
@@ -274,7 +196,7 @@ def max_flow(graph, s, t, variant = "max_height"):
                 w = neighbors[v][current[v]]
 
                 #Push requires excess(v) > 0, height(w)+1 = height(v) (maintains validity) and (v, w) in residual graph.
-                if(residual_G.has_edge(v,w) and height[v] == 1+height[w]):
+                if(residual[v][w] > 0 and height[v] == 1+height[w]):
                     push(v,w)
 
                     #Avoid duplicates in queue and explicitly exclude sink, source excess is always non-positive.
@@ -309,7 +231,7 @@ def max_flow(graph, s, t, variant = "max_height"):
             discharge(v) # Fully exhausts excess[v] until <= 0
 
             #Perform global relabel heuristic after n relabels
-            if(relabels_performed >= num_nodes):
+            if(relabels_performed >= n):
                 global_relabel()
     
     elif(variant=="max_height"):
@@ -326,7 +248,7 @@ def max_flow(graph, s, t, variant = "max_height"):
             discharge(v)
 
             #Perform global relabel heuristic after n relabels
-            if(relabels_performed >= num_nodes):
+            if(relabels_performed >= n):
                 global_relabel()
     
     ### Return ###
