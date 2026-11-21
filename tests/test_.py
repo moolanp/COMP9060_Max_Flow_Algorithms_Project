@@ -8,7 +8,8 @@ import pytest
 from flow_algorithms.dinic import max_flow
 from flow_algorithms import preflow_push
 from flow_algorithms.EdmondsKarp import edmonds_karp_max_flow
-from flow_algorithms.FordFulkerson import ford_fulkerson_max_flow
+from flow_algorithms.FordFulkerson import ford_fulkerson as ford_fulkerson_max_flow
+from flow_algorithms import Ahuja_Orlin_Max_Flow
 
 
 # Verify all seven shared adjacency-list scenarios.
@@ -118,6 +119,107 @@ from flow_algorithms.FordFulkerson import ford_fulkerson_max_flow
             0, 14, 25,
             id="large_network_cycles_reverse_edges",
         ),
+        pytest.param(
+            {
+                0: [(1, 1), (2, 1)],
+                1: [(3, 1), (4, 1)],
+                2: [(3, 1)],
+                3: [(5, 1)],
+                4: [(5, 1)],
+                5: [],
+            },
+            0, 5, 2,
+            id="residual_rerouting",
+        ),
+        pytest.param(
+            {
+                0: [(1, 1), (2, 1), (3, 1)],
+                1: [(4, 1), (5, 1)],
+                2: [(4, 1)],
+                3: [(6, 1)],
+                4: [(7, 1)],
+                5: [(7, 1)],
+                6: [(7, 1)],
+                7: [],
+            },
+            0, 7, 3,
+            id="residual_three_paths",
+        ),
+        pytest.param(
+            {
+                0: [(1, 8), (2, 5)],
+                1: [(3, 3)],
+                2: [(3, 2)],
+                3: [(4, 20)],
+                4: [],
+            },
+            0, 4, 5,
+            id="bottleneck_multiple_paths",
+        ),
+        pytest.param(
+            {
+                0: [(1, 50), (2, 50)],
+                1: [(3, 50)],
+                2: [(3, 50)],
+                3: [(4, 1)],
+                4: [(5, 100)],
+                5: [],
+            },
+            0, 5, 1,
+            id="bottleneck_narrow_edge",
+        ),
+        pytest.param(
+            {
+                0: [],
+                1: [(2, 10)],
+                2: [(3, 10)],
+                3: [],
+            },
+            0, 3, 0,
+            id="disconnected_source",
+        ),
+        pytest.param(
+            {
+                0: [(1, 7)],
+                1: [(2, 4)],
+                2: [],
+                3: [(4, 99)],
+                4: [],
+            },
+            0, 2, 4,
+            id="disconnected_extra_component",
+        ),
+        pytest.param(
+            {
+                0: [(1, 1024), (2, 1)],
+                1: [(3, 3)],
+                2: [(3, 1)],
+                3: [],
+            },
+            0, 3, 4,
+            id="unequal_capacities",
+        ),
+        pytest.param(
+            {
+                0: [(1, 15), (2, 16), (3, 17)],
+                1: [(4, 15)],
+                2: [(4, 16)],
+                3: [(4, 17)],
+                4: [],
+            },
+            0, 4, 48,
+            id="power_two_boundaries",
+        ),
+        pytest.param(
+            {
+                0: [(1, 16), (2, 8)],
+                1: [(3, 9)],
+                2: [(3, 8)],
+                3: [],
+            },
+            0, 3, 17,
+            id="half_scaling_threshold",
+        ),
     ],
 )
 # Call the public function used by other team algorithms.
@@ -129,3 +231,5 @@ def test_max_flow(graph, source, sink, expected):
 
     assert edmonds_karp_max_flow(graph, source, sink) == expected
     assert ford_fulkerson_max_flow(graph, source, sink) == expected
+
+    assert Ahuja_Orlin_Max_Flow.max_flow(graph, source, sink) == expected
