@@ -8,7 +8,7 @@ import pytest
 from flow_algorithms.dinic import max_flow
 from flow_algorithms import preflow_push
 from flow_algorithms.EdmondsKarp import edmonds_karp_max_flow
-from flow_algorithms.FordFulkerson import ford_fulkerson as ford_fulkerson_max_flow
+from flow_algorithms.FordFulkerson import ford_fulkerson_max_flow
 from flow_algorithms import Ahuja_Orlin_Max_Flow
 
 
