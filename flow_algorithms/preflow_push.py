@@ -144,15 +144,33 @@ def max_flow(graph, s, t, variant = "max_height"):
                     dist[v] = dist[w] + 1
                     q.append(v)
 
-        #Nodes that can reach t get assigned their new height, all others are raised to n (unless they have a higher height already)
+        
+        #Second backwards BFS, from the source, over nodes that cannot reach t.
+        #Gives them height n + (distance to s), the exact label for returning excess to s.
+        dist_s = {s: 0}
+        q = deque([s])
+
+        while q:
+            w = q.popleft()
+
+            for v in neighbors[w]:
+
+                if(v not in dist and v not in dist_s and residual[v][w] > 0):
+                    dist_s[v] = dist_s[w] + 1
+                    q.append(v)
+        
+        #Nodes that reach t get their distance to t. Nodes that only reach s get n + distance to s.
+        #Nodes that reach neither get the maximum label 2n-1 (they hold no excess).
         for u in height:
-            
+
             if(u == s):
                 continue
             if(u in dist):
                 height[u] = dist[u]
+            elif(u in dist_s):
+                height[u] = max(height[u], n + dist_s[u])
             else:
-                height[u] = max(height[u], n)
+                height[u] = max(height[u], 2*n - 1)
 
         #Since heights are changed, need to re-initialize active node storage per node selection rule.
         #And re-initialize active_node (boolean dict that keeps track of nodes that are in active node storage)
